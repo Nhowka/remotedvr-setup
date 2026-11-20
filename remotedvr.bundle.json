@@ -1,0 +1,16 @@
+{
+  "title": "RemoteDVR Setup",
+  "description": "Install RemoteDVR on the car's head unit (or a phone) over USB and grant what it needs. Runs entirely in your browser (WebUSB + ADB).",
+  "packageName": "com.nhowka.remotedvr",
+  "postInstall": [
+    {
+      "id": "vendor-libs",
+      "label": "Import the 360 camera libraries from this car",
+      "detail": "copies libais_client, libuhab and libmmosal from /vendor/lib64 into the app's folder; they stay on the car",
+      "headUnitOnly": true,
+      "commands": [
+        "mkdir -p /sdcard/Android/data/com.nhowka.remotedvr/files/vendor && cp /vendor/lib64/libais_client.so /vendor/lib64/libuhab.so /vendor/lib64/libmmosal.so /sdcard/Android/data/com.nhowka.remotedvr/files/vendor/ && ls -l /sdcard/Android/data/com.nhowka.remotedvr/files/vendor/"
+      ]
+    }
+  ]
+}

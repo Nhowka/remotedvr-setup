@@ -1,0 +1,22 @@
+{
+  "name": "remotedvr-setup",
+  "private": true,
+  "version": "0.1.0",
+  "description": "WebUSB ADB installer: install an APK and grant the permissions it requests",
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/main.js --bundle --format=esm --target=es2022 --minify --sourcemap --outfile=docs/app.js",
+    "test": "node --test test/",
+    "bundle": "node scripts/bundle.mjs"
+  },
+  "dependencies": {
+    "@yume-chan/adb": "2.6.4",
+    "@yume-chan/adb-credential-web": "2.1.0",
+    "@yume-chan/adb-daemon-webusb": "2.3.2",
+    "@yume-chan/stream-extra": "2.6.1",
+    "fflate": "0.8.3"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10"
+  }
+}

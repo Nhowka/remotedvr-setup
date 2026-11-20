@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>APK Setup</title>
+  <meta name="description" content="Install an APK over USB and grant the permissions it requests (WebUSB + ADB).">
+  <meta name="theme-color" content="#1f3a5f">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon-192.png">
+  <style>
+    :root { --bg:#f6f7f9; --card:#fff; --fg:#1b1f24; --muted:#6b7280; --line:#e3e6ea; --accent:#1f3a5f; --ok:#137333; --err:#b3261e; --warn:#8a5a00; }
+    @media (prefers-color-scheme: dark) { :root { --bg:#121418; --card:#1b1e24; --fg:#e8eaed; --muted:#9aa0a6; --line:#2c3038; --accent:#8ab4f8; --ok:#81c995; --err:#f28b82; --warn:#fdd663; } }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    main { max-width: 760px; margin: 0 auto; padding: 16px; }
+    h1 { font-size: 22px; margin: 8px 0 4px; }
+    .muted { color: var(--muted); }
+    .ok { color: var(--ok); }
+    .err { color: var(--err); }
+    section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin: 12px 0; }
+    section h2 { font-size: 15px; margin: 0 0 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+    button { font: inherit; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: var(--bg); cursor: pointer; }
+    button.secondary { background: transparent; color: var(--accent); }
+    button:disabled { opacity: .45; cursor: default; }
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .action { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--line); }
+    .action:first-child { border-top: 0; }
+    .action span { display: flex; flex-direction: column; min-width: 0; }
+    .action small { color: var(--muted); overflow-wrap: anywhere; }
+    .action.risky b { color: var(--warn); }
+    input[type=checkbox] { margin-top: 4px; width: 18px; height: 18px; flex: none; }
+    textarea { width: 100%; min-height: 80px; font: 13px ui-monospace, Menlo, monospace; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+    #log { font: 12.5px/1.5 ui-monospace, Menlo, monospace; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+    #log .cmd { color: var(--accent); }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12.5px; }
+    .note { font-size: 13px; color: var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <h1 id="title">APK Setup</h1>
+  <p class="muted" id="subtitle">Install an APK on an Android device over USB and grant the permissions it asks for. Runs entirely in your browser (WebUSB + ADB); the APK never leaves this computer.</p>
+
+  <section>
+    <h2>1 · Device</h2>
+    <div class="row">
+      <button id="connect">Connect USB device</button>
+      <button id="disconnect" class="secondary" hidden>Disconnect</button>
+      <span id="device" class="muted">Not connected</span>
+    </div>
+    <p class="note">Enable USB debugging on the device. Close other ADB tools first: quit Android Studio and run <code>adb kill-server</code> on this computer. Chrome or Edge only.</p>
+  </section>
+
+  <section>
+    <h2>2 · APK</h2>
+    <div id="apk-label" class="note" style="margin-bottom:6px"></div>
+    <input type="file" id="apk" accept=".apk,application/vnd.android.package-archive">
+    <div id="info" style="margin-top:10px"></div>
+  </section>
+
+  <section>
+    <h2>3 · Permissions to grant</h2>
+    <div id="actions" class="muted">Choose an APK to see what it requests.</div>
+    <p class="note">⚠ items are powerful and off by default – tick them only for apps you trust.</p>
+    <div class="row">
+      <button id="install" disabled>Install &amp; grant</button>
+      <label class="row"><input type="checkbox" id="launch" checked> Open the app afterwards</label>
+    </div>
+  </section>
+
+  <section>
+    <h2>Extra commands</h2>
+    <textarea id="extra" placeholder="# one adb shell command per line, e.g.&#10;dumpsys deviceidle whitelist +com.example.app"></textarea>
+    <div class="row"><button id="run-extra" class="secondary" disabled>Run</button></div>
+  </section>
+
+  <section>
+    <h2>Log</h2>
+    <div id="log"></div>
+    <div class="row" style="margin-top:8px"><button id="clear-log" class="secondary">Clear</button></div>
+  </section>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>
