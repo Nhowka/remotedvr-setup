@@ -6,15 +6,15 @@
   "versionName": "1.0",
   "versionCode": 1,
   "size": 20144550,
-  "sha256": "96585f994a25a16a35b14dcd0fa6408bc83328c40fc5d61c5b6ea7ad9f708e45",
+  "sha256": "f6661bc9167024107e7fcd3d6d3f356cdaed276e9c8c004986a5fce4ba84da22",
   "postInstall": [
     {
       "id": "vendor-libs",
       "label": "Import the 360 camera libraries from this car",
-      "detail": "copies libais_client, libuhab and libmmosal from /vendor/lib64 into the app's folder; they stay on the car",
+      "detail": "copies libais_client, libuhab and libmmosal from /vendor/lib64 into the app's folder (skips files already imported); they stay on the car",
       "headUnitOnly": true,
       "commands": [
-        "mkdir -p /sdcard/Android/data/com.nhowka.remotedvr/files/vendor && cp /vendor/lib64/libais_client.so /vendor/lib64/libuhab.so /vendor/lib64/libmmosal.so /sdcard/Android/data/com.nhowka.remotedvr/files/vendor/ && ls -l /sdcard/Android/data/com.nhowka.remotedvr/files/vendor/"
+        "D=/sdcard/Android/data/com.nhowka.remotedvr/files/vendor; L=/data/media/0/Android/data/com.nhowka.remotedvr/files/vendor; mkdir -p $D 2>/dev/null; for f in libais_client.so libuhab.so libmmosal.so; do if [ ! -f /vendor/lib64/$f ]; then echo \"$f: not on this device\"; elif [ -f $D/$f ] && cmp -s /vendor/lib64/$f $D/$f; then echo \"$f: already imported\"; elif cp /vendor/lib64/$f $D/$f 2>/dev/null || cp /vendor/lib64/$f $L/$f 2>/dev/null; then echo \"$f: imported\"; else echo \"$f: COPY FAILED (open the app once, then retry; the car screen shows whether the 360 libraries are ready)\"; fi; done"
       ]
     }
   ]

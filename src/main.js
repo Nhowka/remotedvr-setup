@@ -104,6 +104,7 @@ async function connect() {
       sh("getprop ro.build.display.id", { quiet: true }),
     ]);
     state.headUnit = /DesaySV/i.test(fingerprint);
+    state.sdk = Number(sdk) || 0;
     // Jaecoo/Chery firmware variant: SOP6/SOP7 refuse `pm install` (install via the session API instead).
     state.variant = displayId.match(/SOP\d+/i)?.[0]?.toUpperCase() ?? null;
     state.device = `${model} · Android ${release} (API ${sdk})` + (state.headUnit ? ` · Desay SV head unit${state.variant ? " " + state.variant : ""}` : "");
@@ -224,8 +225,9 @@ async function install() {
   } catch (e) { log(`Session helper unavailable (${e.message}); using pm only.`, "muted"); }
   const helper = ["session API (app_process)", `CLASSPATH=${dex} app_process /system/bin rdvr.Installer ${remote} 2>&1`];
   const pmInstall = ["pm install", `pm install -r -d -g ${remote} 2>&1`];
-  // SOP6/SOP7 head units block `pm install`; unknown head-unit firmware also starts with the helper (like JApp).
-  const helperFirst = state.headUnit && state.variant !== "SOP4";
+  // Desay SV head units block `pm install` ("Restriction prevents installing") – seen on SOP6/7 (JApp) and on an
+  // SOP4 Jaecoo J7 too – so the helper goes first on every head unit.
+  const helperFirst = state.headUnit;
   const methods = [
     ...(haveDex && helperFirst ? [helper, pmInstall] : haveDex ? [pmInstall, helper] : [pmInstall]),
     ["install session", `s=$(pm install-create -r -g -S ${apkBytes.length} 2>&1); echo "$s"; id=$(echo "$s" | grep -o '\\[[0-9]*\\]' | tr -d '[]'); ` +
@@ -264,6 +266,8 @@ async function grant() {
     if (act.headUnitOnly && !state.headUnit) { log(`— ${act.label}: skipped (not a Desay SV head unit)`, "muted"); continue; }
     log(`— ${act.label}`, "muted");
     for (const cmd of act.commands) {
+      const minSdk = permissionMinSdk(cmd);
+      if (state.sdk && minSdk > state.sdk) { log(`skipped ${cmd.split(" ").pop().split(".").pop()} (needs Android API ${minSdk}, device has ${state.sdk})`, "muted"); continue; }
       try { await sh(cmd); } catch (e) { log(`failed: ${e.message}`, "err"); }
     }
   }
@@ -272,12 +276,23 @@ async function grant() {
     const runtime = state.actions.find((x) => x.id === "runtime" && x.on);
     if (runtime) {
       const dump = await sh(`dumpsys package ${apk.packageName}`, { quiet: true });
-      const wanted = runtime.commands.map((c) => c.split(" ").pop());
+      const wanted = runtime.commands.filter((c) => !state.sdk || permissionMinSdk(c) <= state.sdk).map((c) => c.split(" ").pop());
       const ok = wanted.filter((p) => new RegExp(`${p.replace(/\./g, "\\.")}: granted=true`).test(dump));
       log(`Runtime permissions granted: ${ok.length}/${wanted.length}` + (ok.length < wanted.length ? ` (missing: ${wanted.filter((p) => !ok.includes(p)).map((p) => p.split(".").pop()).join(", ")})` : ""), ok.length === wanted.length ? "ok" : "err");
     }
   } catch {}
   log("Set-up done.", "ok");
+}
+
+/** Runtime permissions that don't exist on older Android versions (granting them fails with "Unknown permission"). */
+const PERMISSION_MIN_SDK = {
+  POST_NOTIFICATIONS: 33, NEARBY_WIFI_DEVICES: 33, READ_MEDIA_IMAGES: 33, READ_MEDIA_VIDEO: 33, READ_MEDIA_AUDIO: 33,
+  BODY_SENSORS_BACKGROUND: 33, READ_MEDIA_VISUAL_USER_SELECTED: 34, BLUETOOTH_SCAN: 31, BLUETOOTH_CONNECT: 31,
+  BLUETOOTH_ADVERTISE: 31, UWB_RANGING: 31, ACCESS_BACKGROUND_LOCATION: 29, ACTIVITY_RECOGNITION: 29, ACCESS_MEDIA_LOCATION: 29,
+};
+function permissionMinSdk(cmd) {
+  const m = cmd.match(/^pm grant \S+ android\.permission\.(\w+)$/);
+  return (m && PERMISSION_MIN_SDK[m[1]]) || 0;
 }
 
 async function openApp() {
@@ -292,23 +307,52 @@ async function runExtra() {
   }
 }
 
-// ---------- copy the log ----------
-async function copyLog() {
-  const text = Array.from($("log").children, (d) => d.textContent).join("\n");
-  const status = (msg) => { $("copy-status").textContent = msg; setTimeout(() => ($("copy-status").textContent = ""), 3000); };
-  if (!text) return status("Log is empty.");
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    // Fallback for browsers/contexts without the async clipboard API.
-    const ta = document.createElement("textarea");
-    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
-    document.body.append(ta); ta.select();
-    const ok = document.execCommand("copy");
-    ta.remove();
-    if (!ok) return status("Couldn't copy – select the log text manually.");
-  }
-  status(`Copied ${text.split("\n").length} lines.`);
+// ---------- copy / share / save the log ----------
+const logText = () => Array.from($("log").children, (d) => d.textContent).join("\n");
+function logStatus(msg) { $("copy-status").textContent = msg; setTimeout(() => ($("copy-status").textContent = ""), 4000); }
+
+/** Synchronous copy through a focused, selected textarea – works on mobile browsers where the async API is refused. */
+function copyViaTextarea(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.setAttribute("readonly", "");
+  Object.assign(ta.style, { position: "fixed", top: "0", left: "0", width: "1px", height: "1px", opacity: "0", fontSize: "16px" });
+  document.body.append(ta);
+  ta.focus();
+  ta.select();
+  ta.setSelectionRange(0, text.length);
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch {}
+  ta.remove();
+  return ok;
+}
+
+function copyLog() {
+  const text = logText();
+  if (!text) return logStatus("Log is empty.");
+  // Try the synchronous path first, inside the tap (mobile browsers drop the gesture after an await).
+  if (copyViaTextarea(text)) return logStatus(`Copied ${text.split("\n").length} lines.`);
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(
+      () => logStatus(`Copied ${text.split("\n").length} lines.`),
+      () => logStatus(navigator.share ? "Couldn't copy – use Share log." : "Couldn't copy – use Save .txt."));
+  } else logStatus(navigator.share ? "Couldn't copy – use Share log." : "Couldn't copy – use Save .txt.");
+}
+
+async function shareLog() {
+  const text = logText();
+  if (!text) return logStatus("Log is empty.");
+  try { await navigator.share({ title: "RemoteDVR setup log", text }); } catch (e) { if (e?.name !== "AbortError") logStatus(`Share failed: ${e.message}`); }
+}
+
+function saveLog() {
+  const text = logText();
+  if (!text) return logStatus("Log is empty.");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+  a.download = `remotedvr-setup-log-${new Date().toISOString().replace(/[:.]/g, "-")}.txt`;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
 }
 
 // ---------- bundled app (docs/bundle.json, written by `npm run bundle`) ----------
@@ -355,6 +399,9 @@ $("open-app").addEventListener("click", () => busy(openApp));
 $("run-extra").addEventListener("click", runExtra);
 $("clear-log").addEventListener("click", () => ($("log").textContent = ""));
 $("copy-log").addEventListener("click", copyLog);
+$("share-log").addEventListener("click", shareLog);
+$("save-log").addEventListener("click", saveLog);
+$("share-log").hidden = !navigator.share;
 refresh();
 loadBundle();
 
