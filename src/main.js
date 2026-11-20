@@ -211,6 +211,13 @@ async function showInstalled() {
 async function install() {
   const { apk, apkBytes } = state;
   log(`Installing ${apk.packageName} ${apk.versionName} (${(apkBytes.length / 1048576).toFixed(1)} MB)…`);
+  // App-specific steps before replacing the app (bundle.json "preInstall"), e.g. RemoteDVR releasing its 360 cameras.
+  if (state.bundle?.packageName === apk.packageName && (await installedVersion(apk.packageName).catch(() => null))) {
+    for (const step of state.bundle.preInstall || []) {
+      log(`— ${step.label}`, "muted");
+      for (const cmd of step.commands) await sh(cmd).catch((e) => log(`failed: ${e.message}`, "err"));
+    }
+  }
   const remote = `${TMP}/rdvr_pkg_${Date.now()}.apk`;
   await push(remote, bytesStream(apkBytes));
   log(`Copied to ${remote}.`, "muted");

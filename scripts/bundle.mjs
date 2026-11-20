@@ -27,6 +27,7 @@ const bundle = {
   versionCode: manifest.versionCode,
   size: bytes.length,
   sha256: createHash("sha256").update(bytes).digest("hex"),
+  preInstall: config.preInstall || [],
   postInstall: config.postInstall || [],
 };
 writeFileSync("docs/bundle.json", JSON.stringify(bundle, null, 2) + "\n");
