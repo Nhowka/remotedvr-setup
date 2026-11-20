@@ -5,8 +5,8 @@
   "packageName": "com.nhowka.remotedvr",
   "versionName": "1.0",
   "versionCode": 1,
-  "size": 20144550,
-  "sha256": "a80f3421b19d1b6d2615c21f9b7871cbda59237da09ab3b5b4f1d70f4535bccf",
+  "size": 20193954,
+  "sha256": "25b9a2a02ca85bc95c65edce86fb339b38f718c85619c412a739f211d5dd8302",
   "postInstall": [
     {
       "id": "vendor-libs",
