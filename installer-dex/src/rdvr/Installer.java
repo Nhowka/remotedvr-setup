@@ -29,6 +29,8 @@ import java.util.concurrent.TimeUnit;
 public final class Installer {
     private static final int INSTALL_REPLACE_EXISTING = 0x00000002;
     private static final int INSTALL_GRANT_RUNTIME_PERMISSIONS = 0x00000100;
+    /** Same as `pm install -d`: allow replacing a newer build with an older one. */
+    private static final int INSTALL_REQUEST_DOWNGRADE = 0x00000080;
 
     public static void main(String[] args) {
         int rc;
@@ -69,7 +71,7 @@ public final class Installer {
         PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
         params.setAppPackageName(pkg);
         params.setSize(apk.length());
-        addInstallFlags(params, INSTALL_REPLACE_EXISTING | INSTALL_GRANT_RUNTIME_PERMISSIONS);
+        addInstallFlags(params, INSTALL_REPLACE_EXISTING | INSTALL_GRANT_RUNTIME_PERMISSIONS | INSTALL_REQUEST_DOWNGRADE);
 
         HandlerThread callbacks = new HandlerThread("rdvr-install");
         callbacks.start();

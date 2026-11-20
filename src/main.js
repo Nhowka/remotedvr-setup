@@ -296,9 +296,12 @@ function permissionMinSdk(cmd) {
 }
 
 async function openApp() {
+  // Resolve the launcher activity and start it (`monkey` doesn't launch on every device).
   const pkg = state.apk.packageName;
-  const out = await sh(`monkey -p ${pkg} -c android.intent.category.LAUNCHER 1 2>&1 | grep -E "Events injected|No activities"`, { quiet: true });
-  log(/Events injected: 1/.test(out) ? `Opened ${pkg}.` : `Couldn't open the app (${out || "not installed or no launcher activity"}).`, /Events injected: 1/.test(out) ? "ok" : "err");
+  const comp = (await sh(`cmd package resolve-activity --brief -c android.intent.category.LAUNCHER ${pkg} | tail -n 1`, { quiet: true })).trim();
+  const out = comp.includes("/") ? await sh(`am start -n ${comp} 2>&1`, { quiet: true }) : "";
+  const ok = comp.includes("/") && !/Error/.test(out);
+  log(ok ? `Opened ${pkg}.` : `Couldn't open the app (${comp || "not installed or no launcher activity"}).`, ok ? "ok" : "err");
 }
 
 async function runExtra() {

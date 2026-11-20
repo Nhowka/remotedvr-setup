@@ -10,7 +10,7 @@ const manifestOf = (apk) => summarizeManifest(parseBinaryXml(unzipSync(readFileS
 test("RemoteDVR (our release APK, R8)", () => {
   const m = manifestOf("../RemoteDVR.apk");
   assert.equal(m.packageName, "com.nhowka.remotedvr");
-  assert.equal(m.versionName, "1.0");
+  assert.match(m.versionName, /^1\.0(\.\d{8}\.\d{4})?$/); // build-time version (1.0.yyyyMMdd.HHmm)
   assert.ok(m.permissions.includes("android.permission.ACCESS_FINE_LOCATION"));
   assert.ok(m.permissions.includes("android.permission.FOREGROUND_SERVICE"));
   const ids = planActions(m).map((a) => a.id);
