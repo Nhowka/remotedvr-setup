@@ -292,6 +292,25 @@ async function runExtra() {
   }
 }
 
+// ---------- copy the log ----------
+async function copyLog() {
+  const text = Array.from($("log").children, (d) => d.textContent).join("\n");
+  const status = (msg) => { $("copy-status").textContent = msg; setTimeout(() => ($("copy-status").textContent = ""), 3000); };
+  if (!text) return status("Log is empty.");
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // Fallback for browsers/contexts without the async clipboard API.
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.append(ta); ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    if (!ok) return status("Couldn't copy – select the log text manually.");
+  }
+  status(`Copied ${text.split("\n").length} lines.`);
+}
+
 // ---------- bundled app (docs/bundle.json, written by `npm run bundle`) ----------
 async function sha256Hex(bytes) {
   const d = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
@@ -335,6 +354,7 @@ $("grant").addEventListener("click", () => busy(grant));
 $("open-app").addEventListener("click", () => busy(openApp));
 $("run-extra").addEventListener("click", runExtra);
 $("clear-log").addEventListener("click", () => ($("log").textContent = ""));
+$("copy-log").addEventListener("click", copyLog);
 refresh();
 loadBundle();
 
