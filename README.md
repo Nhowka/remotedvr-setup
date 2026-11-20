@@ -12,6 +12,11 @@ the APK requests. Runs entirely in the browser; the APK is never uploaded anywhe
 - Pushes the APK to `/data/local/tmp` and runs `pm install -r -g` **from a pushed script**: Desay SV head units
   (Chery/Jaecoo/Omoda) close any adb command line containing `install`. Any other command containing that word is
   run the same way. Then runs the checked commands, reports the granted count, can launch the app.
+- **SOP6/SOP7 Jaecoo firmware blocks `pm install`.** The page detects the variant (`ro.build.display.id`) and first
+  installs with our own helper `installer-dex/src/rdvr/Installer.java` (PackageInstaller session API as the shell user,
+  run with `CLASSPATH=… app_process /system/bin rdvr.Installer <apk>`; built into `docs/rdvr-installer.dex` by
+  `installer-dex/build.sh`), then falls back to `pm install -r -d -g` and a `pm install-create/write/commit` session.
+  Install, "Grant & set up" and "Open app" are independent buttons.
 - **Bundled app:** if `docs/bundle.json` exists the page loads that APK itself (SHA-256 checked) and adds its
   app-specific steps (for RemoteDVR: import the car's 360 camera libraries, head unit only). You can still pick
   another APK. Update it with `npm run bundle -- <app.apk> remotedvr.bundle.json`.

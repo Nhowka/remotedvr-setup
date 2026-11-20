@@ -63,7 +63,9 @@ function refresh() {
   const connected = !!state.adb;
   $("connect").hidden = connected;
   $("disconnect").hidden = !connected;
-  $("install").disabled = !connected || !state.apk;
+  $("install").disabled = !connected || !state.apk || state.busy;
+  $("grant").disabled = !connected || !state.apk || state.busy;
+  $("open-app").disabled = !connected || !state.apk || state.busy;
   $("run-extra").disabled = !connected;
   $("device").textContent = connected ? state.device : "Not connected";
   $("device").className = connected ? "ok" : "muted";
@@ -94,15 +96,20 @@ async function connect() {
       log("Device disconnected.", "muted");
       refresh();
     });
-    const [model, release, sdk, fingerprint] = await Promise.all([
+    const [model, release, sdk, fingerprint, displayId] = await Promise.all([
       sh("getprop ro.product.model", { quiet: true }),
       sh("getprop ro.build.version.release", { quiet: true }),
       sh("getprop ro.build.version.sdk", { quiet: true }),
       sh("getprop ro.build.fingerprint", { quiet: true }),
+      sh("getprop ro.build.display.id", { quiet: true }),
     ]);
     state.headUnit = /DesaySV/i.test(fingerprint);
-    state.device = `${model} · Android ${release} (API ${sdk})` + (state.headUnit ? " · Desay SV head unit" : "");
+    // Jaecoo/Chery firmware variant: SOP6/SOP7 refuse `pm install` (install via the session API instead).
+    state.variant = displayId.match(/SOP\d+/i)?.[0]?.toUpperCase() ?? null;
+    state.device = `${model} · Android ${release} (API ${sdk})` + (state.headUnit ? ` · Desay SV head unit${state.variant ? " " + state.variant : ""}` : "");
+    if (state.headUnit) log(`Firmware: ${displayId}`, "muted");
     log(`Connected: ${state.device}`, "ok");
+    showInstalled().catch(() => {});
   } catch (e) {
     const busy = /claim|busy|in use|access denied/i.test(e.message || "");
     log(`Connection failed: ${e.message}`, "err");
@@ -138,6 +145,7 @@ async function loadApk(bytes, name) {
     // App-specific steps from bundle.json (e.g. importing the car's camera libraries).
     for (const extra of state.bundle?.postInstall || []) state.actions.push({ risky: false, on: true, ...extra });
     renderApk(bytes.length);
+    showInstalled().catch(() => {});
   } catch (e) {
     log(`Can't read ${name}: ${e.message}`, "err");
   }
@@ -179,22 +187,77 @@ function renderApk(size) {
   }
 }
 
-async function installAndGrant() {
+// ---------- install / grant / open (independent steps) ----------
+async function busy(fn) {
+  state.busy = true; refresh();
+  try { await fn(); } catch (e) { log(`Failed: ${e.message}`, "err"); } finally { state.busy = false; refresh(); }
+}
+
+/** Installed version of the package, or null. `pm path` / `dumpsys` contain no "install", so they run directly. */
+async function installedVersion(pkg) {
+  const path = await sh(`pm path ${pkg}`, { quiet: true });
+  if (!/^package:/m.test(path)) return null;
+  const dump = await sh(`dumpsys package ${pkg} | grep -m 2 -E "versionCode=|versionName="`, { quiet: true });
+  return { code: Number(dump.match(/versionCode=(\d+)/)?.[1] ?? NaN), name: dump.match(/versionName=(\S+)/)?.[1] ?? "?" };
+}
+
+async function showInstalled() {
+  const v = state.apk && state.adb ? await installedVersion(state.apk.packageName).catch(() => null) : null;
+  $("installed").textContent = v ? `Installed on the device: ${v.name} (${v.code})` : (state.adb && state.apk ? "Not installed on the device" : "");
+  return v;
+}
+
+async function install() {
   const { apk, apkBytes } = state;
-  $("install").disabled = true;
+  log(`Installing ${apk.packageName} ${apk.versionName} (${(apkBytes.length / 1048576).toFixed(1)} MB)…`);
+  const remote = `${TMP}/rdvr_pkg_${Date.now()}.apk`;
+  await push(remote, bytesStream(apkBytes));
+  log(`Copied to ${remote}.`, "muted");
+  // Our own PackageInstaller-session helper (installer-dex/, run with app_process as the shell user).
+  const dex = `${TMP}/rdvr_installer.dex`;
+  let haveDex = false;
   try {
-    log(`Installing ${apk.packageName} (${(apkBytes.length / 1048576).toFixed(1)} MB)…`);
-    // Push, then `pm install` from the device (see NEEDS_SCRIPT): a streamed install is refused by Desay SV head units.
-    const remote = `${TMP}/rdvr_pkg_${Date.now()}.apk`;
-    await push(remote, bytesStream(apkBytes));
-    const out = await sh(`pm install -r -g ${remote} 2>&1; rm -f ${remote}`);
-    if (!/^Success/m.test(out)) throw new Error(out || "no output from pm");
+    const r = await fetch("rdvr-installer.dex");
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    await push(dex, bytesStream(new Uint8Array(await r.arrayBuffer())));
+    haveDex = true;
+  } catch (e) { log(`Session helper unavailable (${e.message}); using pm only.`, "muted"); }
+  const helper = ["session API (app_process)", `CLASSPATH=${dex} app_process /system/bin rdvr.Installer ${remote} 2>&1`];
+  const pmInstall = ["pm install", `pm install -r -d -g ${remote} 2>&1`];
+  // SOP6/SOP7 head units block `pm install`; unknown head-unit firmware also starts with the helper (like JApp).
+  const helperFirst = state.headUnit && state.variant !== "SOP4";
+  const methods = [
+    ...(haveDex && helperFirst ? [helper, pmInstall] : haveDex ? [pmInstall, helper] : [pmInstall]),
+    ["install session", `s=$(pm install-create -r -g -S ${apkBytes.length} 2>&1); echo "$s"; id=$(echo "$s" | grep -o '\\[[0-9]*\\]' | tr -d '[]'); ` +
+      `[ -n "$id" ] && pm install-write -S ${apkBytes.length} $id base.apk ${remote} 2>&1 && pm install-commit $id 2>&1`],
+  ];
+  let ok = false;
+  for (const [label, cmd] of methods) {
+    log(`— ${label}`, "muted");
+    const out = await sh(cmd).catch((e) => `error: ${e.message}`);
+    const v = await installedVersion(apk.packageName).catch(() => null);
+    if (/Success|RDVR_INSTALLED/.test(out) && v && (!apk.versionCode || v.code === Number(apk.versionCode))) { ok = true; break; }
+    if (/UPDATE_INCOMPATIBLE|signatures do not match/i.test(out)) { log(`A version signed with another key is installed. Uninstall it first: pm uninstall ${apk.packageName}`, "err"); break; }
+    if (/VERSION_DOWNGRADE/i.test(out)) { log("A newer version is installed; uninstall it first to downgrade.", "err"); break; }
+  }
+  await sh(`rm -f ${remote} ${dex}`, { quiet: true }).catch(() => {});
+  if (ok) {
     log("Installed.", "ok");
-  } catch (e) {
-    log(`Install failed: ${e.message}`, "err");
-    if (/UPDATE_INCOMPATIBLE|signatures do not match/i.test(e.message)) log(`A version signed with another key is installed. Uninstall it first: pm uninstall ${apk.packageName}`, "err");
-    if (/VERSION_DOWNGRADE/i.test(e.message)) log("A newer version is installed; uninstall it first to downgrade.", "err");
-    refresh();
+  } else {
+    log("Install failed. Device log (package manager):", "err");
+    await sh(`logcat -d -b all -t 600 2>/dev/null | grep -i -E "Restriction|PackageManager|PackageInstaller|app_process|AndroidRuntime|INSTALL_|sop6|desay" | tail -n 30`).catch(() => {});
+    const dl = `/sdcard/Download/${apk.packageName}-${apk.versionName || "app"}.apk`;
+    await push(dl, bytesStream(apkBytes)).then(
+      () => log(`Copied the APK to ${dl}: open it with the device's file manager to install it, then use "Grant & set up".`, "err"),
+      (e) => log(`Couldn't copy the APK to Download: ${e.message}`, "err"));
+  }
+  await showInstalled();
+}
+
+async function grant() {
+  const { apk } = state;
+  if (!(await installedVersion(apk.packageName))) {
+    log(`${apk.packageName} isn't installed on the device yet – install it first (here or from a file manager).`, "err");
     return;
   }
   for (const act of state.actions.filter((x) => x.on)) {
@@ -206,7 +269,7 @@ async function installAndGrant() {
   }
   try {
     // Report only the runtime permissions we asked for (install-time "normal" ones are always granted).
-    const runtime = state.actions.find((x) => x.id === "runtime");
+    const runtime = state.actions.find((x) => x.id === "runtime" && x.on);
     if (runtime) {
       const dump = await sh(`dumpsys package ${apk.packageName}`, { quiet: true });
       const wanted = runtime.commands.map((c) => c.split(" ").pop());
@@ -214,12 +277,13 @@ async function installAndGrant() {
       log(`Runtime permissions granted: ${ok.length}/${wanted.length}` + (ok.length < wanted.length ? ` (missing: ${wanted.filter((p) => !ok.includes(p)).map((p) => p.split(".").pop()).join(", ")})` : ""), ok.length === wanted.length ? "ok" : "err");
     }
   } catch {}
-  log("Done.", "ok");
-  if ($("launch").checked) {
-    const out = await sh(`monkey -p ${apk.packageName} -c android.intent.category.LAUNCHER 1 2>&1 | grep -E "Events injected|No activities"`, { quiet: true });
-    log(/Events injected: 1/.test(out) ? `Opened ${apk.packageName}.` : `Couldn't open the app (${out || "no launcher activity"}).`, /Events injected: 1/.test(out) ? "ok" : "err");
-  }
-  refresh();
+  log("Set-up done.", "ok");
+}
+
+async function openApp() {
+  const pkg = state.apk.packageName;
+  const out = await sh(`monkey -p ${pkg} -c android.intent.category.LAUNCHER 1 2>&1 | grep -E "Events injected|No activities"`, { quiet: true });
+  log(/Events injected: 1/.test(out) ? `Opened ${pkg}.` : `Couldn't open the app (${out || "not installed or no launcher activity"}).`, /Events injected: 1/.test(out) ? "ok" : "err");
 }
 
 async function runExtra() {
@@ -266,7 +330,9 @@ async function loadBundle() {
 $("connect").addEventListener("click", connect);
 $("disconnect").addEventListener("click", disconnect);
 $("apk").addEventListener("change", (e) => chooseApk(e.target.files[0]));
-$("install").addEventListener("click", installAndGrant);
+$("install").addEventListener("click", () => busy(install));
+$("grant").addEventListener("click", () => busy(grant));
+$("open-app").addEventListener("click", () => busy(openApp));
 $("run-extra").addEventListener("click", runExtra);
 $("clear-log").addEventListener("click", () => ($("log").textContent = ""));
 refresh();

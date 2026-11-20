@@ -65,12 +65,21 @@
   </section>
 
   <section>
-    <h2>3 · Permissions to grant</h2>
-    <div id="actions" class="muted">Choose an APK to see what it requests.</div>
-    <p class="note">⚠ items are powerful and off by default – tick them only for apps you trust.</p>
+    <h2>3 · Install</h2>
     <div class="row">
-      <button id="install" disabled>Install &amp; grant</button>
-      <label class="row"><input type="checkbox" id="launch" checked> Open the app afterwards</label>
+      <button id="install" disabled>Install</button>
+      <span id="installed" class="muted"></span>
+    </div>
+    <p class="note">On Jaecoo/Chery head units with SOP6/SOP7 firmware <code>pm install</code> is blocked, so it first installs through Android's PackageInstaller (a small helper run with <code>app_process</code>), then falls back to <code>pm install</code> and an install session. If both fail, the APK is copied to the device's <code>Download</code> folder so it can be installed from a file manager, and the log shows the device's reason.</p>
+  </section>
+
+  <section>
+    <h2>4 · Permissions &amp; setup</h2>
+    <div id="actions" class="muted">Choose an APK to see what it requests.</div>
+    <p class="note">⚠ items are powerful and off by default – tick them only for apps you trust. Works on its own: use it after installing here or any other way.</p>
+    <div class="row">
+      <button id="grant" disabled>Grant &amp; set up</button>
+      <button id="open-app" class="secondary" disabled>Open app</button>
     </div>
   </section>
 
