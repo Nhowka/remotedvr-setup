@@ -246,6 +246,9 @@ async function loadBundle() {
   $("title").textContent = bundle.title;
   $("subtitle").textContent = bundle.description;
   $("apk-label").textContent = `${bundle.apk} · version ${bundle.versionName} — or pick another APK:`;
+  $("apk-download-link").href = bundle.apk;
+  $("apk-download-link").textContent = `Download ${bundle.apk} (${(bundle.size / 1048576).toFixed(1)} MB)`;
+  $("apk-download").hidden = false;
   log(`Loading ${bundle.apk} (${(bundle.size / 1048576).toFixed(1)} MB)…`, "muted");
   try {
     const bytes = new Uint8Array(await (await fetch(bundle.apk)).arrayBuffer());

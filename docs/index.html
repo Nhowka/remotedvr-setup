@@ -22,6 +22,7 @@
     section h2 { font-size: 15px; margin: 0 0 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
     button { font: inherit; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: var(--bg); cursor: pointer; }
     button.secondary { background: transparent; color: var(--accent); }
+    a.button { font: inherit; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--accent); color: var(--accent); text-decoration: none; white-space: nowrap; }
     button:disabled { opacity: .45; cursor: default; }
     .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
     .action { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--line); }
@@ -54,6 +55,10 @@
 
   <section>
     <h2>2 · APK</h2>
+    <div id="apk-download" class="row" style="margin-bottom:10px" hidden>
+      <a id="apk-download-link" class="button" download>Download APK</a>
+      <span class="note">For a phone: open this page on the phone, download, then open the file to install (allow "Install unknown apps" for the browser when asked).</span>
+    </div>
     <div id="apk-label" class="note" style="margin-bottom:6px"></div>
     <input type="file" id="apk" accept=".apk,application/vnd.android.package-archive">
     <div id="info" style="margin-top:10px"></div>
