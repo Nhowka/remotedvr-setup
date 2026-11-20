@@ -6,7 +6,7 @@
   "versionName": "1.0",
   "versionCode": 1,
   "size": 20144550,
-  "sha256": "f6661bc9167024107e7fcd3d6d3f356cdaed276e9c8c004986a5fce4ba84da22",
+  "sha256": "a80f3421b19d1b6d2615c21f9b7871cbda59237da09ab3b5b4f1d70f4535bccf",
   "postInstall": [
     {
       "id": "vendor-libs",
