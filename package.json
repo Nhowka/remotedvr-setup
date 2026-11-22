@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "esbuild src/main.js --bundle --format=esm --target=es2022 --minify --sourcemap --outfile=docs/app.js",
-    "test": "node --test test/",
+    "test": "node --test test/*.test.js",
     "bundle": "node scripts/bundle.mjs"
   },
   "dependencies": {
