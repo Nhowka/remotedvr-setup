@@ -29,6 +29,10 @@ const bundle = {
   sha256: createHash("sha256").update(bytes).digest("hex"),
   preInstall: config.preInstall || [],
   postInstall: config.postInstall || [],
+  // Extra APKs shipped inside the app (e.g. RemoteDVR's car-only update helper), installed after it.
+  companions: config.companions || [],
 };
+for (const c of bundle.companions)
+  if (!unzipSync(bytes, { filter: (f) => f.name === c.asset })[c.asset]) throw new Error(`${c.asset} not in ${name}`);
 writeFileSync("docs/bundle.json", JSON.stringify(bundle, null, 2) + "\n");
 console.log(`bundled ${name}: ${bundle.packageName} ${bundle.versionName} (${bundle.versionCode}), ${(bytes.length / 1048576).toFixed(1)} MB, sha256 ${bundle.sha256.slice(0, 16)}…`);

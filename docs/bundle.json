@@ -3,10 +3,10 @@
   "description": "Install RemoteDVR on the car's head unit (or a phone) over USB and grant what it needs. Runs entirely in your browser (WebUSB + ADB).",
   "apk": "RemoteDVR.apk",
   "packageName": "com.nhowka.remotedvr",
-  "versionName": "1.0.20261122.2125",
-  "versionCode": 469285,
-  "size": 20332347,
-  "sha256": "d049218b839c751e508f2aa66607e0e28194953044f40492713dc4b4c345c910",
+  "versionName": "1.0.20261122.2215",
+  "versionCode": 469335,
+  "size": 20351317,
+  "sha256": "51faffc81650271c8f916f03cbec4e7545f5bead5ee1e998735a9b3641505149",
   "preInstall": [
     {
       "label": "Ask RemoteDVR on the car to release the 360 cameras (an update would otherwise leave them stuck until the car sleeps)",
@@ -25,6 +25,22 @@
       "commands": [
         "D=/sdcard/Android/data/com.nhowka.remotedvr/files/vendor; L=/data/media/0/Android/data/com.nhowka.remotedvr/files/vendor; mkdir -p $D 2>/dev/null; for f in libais_client.so libuhab.so libmmosal.so; do if [ ! -f /vendor/lib64/$f ]; then echo \"$f: not on this device\"; elif [ -f $D/$f ] && cmp -s /vendor/lib64/$f $D/$f; then echo \"$f: already imported\"; elif cp /vendor/lib64/$f $D/$f 2>/dev/null || cp /vendor/lib64/$f $L/$f 2>/dev/null; then echo \"$f: imported\"; else echo \"$f: COPY FAILED (open the app once, then retry; the car screen shows whether the 360 libraries are ready)\"; fi; done"
       ]
+    },
+    {
+      "id": "update-helper",
+      "label": "Let \"RemoteDVR updates\" confirm Wi-Fi updates (accessibility; only presses Install for RemoteDVR, for 2 minutes after the phone sends one)",
+      "detail": "com.nhowka.remotedvr.updatehelper/.InstallClicker",
+      "headUnitOnly": true,
+      "commands": [
+        "pm path com.nhowka.remotedvr.updatehelper >/dev/null 2>&1 || { echo \"update helper not installed – use Install first\"; exit 0; }; cur=$(settings get secure enabled_accessibility_services); case \"$cur\" in *com.nhowka.remotedvr.updatehelper/.InstallClicker*) ;; null|\"\") settings put secure enabled_accessibility_services com.nhowka.remotedvr.updatehelper/.InstallClicker ;; *) settings put secure enabled_accessibility_services \"$cur:com.nhowka.remotedvr.updatehelper/.InstallClicker\" ;; esac; settings put secure accessibility_enabled 1; echo \"enabled\""
+      ]
+    }
+  ],
+  "companions": [
+    {
+      "asset": "assets/update-helper.apk",
+      "label": "Install \"RemoteDVR updates\" (car-only helper: presses Install for updates sent from the phone over Wi-Fi)",
+      "headUnitOnly": true
     }
   ]
 }

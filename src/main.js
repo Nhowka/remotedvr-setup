@@ -211,8 +211,41 @@ async function showInstalled() {
 async function install() {
   const { apk, apkBytes } = state;
   log(`Installing ${apk.packageName} ${apk.versionName} (${(apkBytes.length / 1048576).toFixed(1)} MB)…`);
+  const ok = await installBytes(apk, apkBytes, true);
+  if (ok) {
+    log("Installed.", "ok");
+    await installCompanions().catch((e) => log(`Companion app: ${e.message}`, "err"));
+  } else {
+    const dl = `/sdcard/Download/${apk.packageName}-${apk.versionName || "app"}.apk`;
+    await push(dl, bytesStream(apkBytes)).then(
+      () => log(`Copied the APK to ${dl}: open it with the device's file manager to install it, then use "Grant & set up".`, "err"),
+      (e) => log(`Couldn't copy the APK to Download: ${e.message}`, "err"));
+  }
+  await showInstalled();
+}
+
+/**
+ * Apps shipped inside the bundled APK (bundle.json "companions"), e.g. RemoteDVR's car-only update helper: installed
+ * from the APK's own assets when missing or older.
+ */
+async function installCompanions() {
+  if (state.bundle?.packageName !== state.apk.packageName) return;
+  for (const c of state.bundle.companions || []) {
+    if (c.headUnitOnly && !state.headUnit) { log(`— ${c.label}: skipped (not a Desay SV head unit)`, "muted"); continue; }
+    const bytes = unzipSync(state.apkBytes, { filter: (f) => f.name === c.asset })[c.asset];
+    if (!bytes) { log(`— ${c.label}: not in this APK`, "muted"); continue; }
+    const m = summarizeManifest(parseBinaryXml(unzipSync(bytes, { filter: (f) => f.name === "AndroidManifest.xml" })["AndroidManifest.xml"]));
+    const have = await installedVersion(m.packageName).catch(() => null);
+    if (have && have.code >= Number(m.versionCode)) { log(`— ${c.label}: already installed (${have.name})`, "muted"); continue; }
+    log(`— ${c.label}`, "muted");
+    log((await installBytes(m, bytes, false)) ? `Installed ${m.packageName}.` : `Couldn't install ${m.packageName}.`, "muted");
+  }
+}
+
+/** Installs [bytes] ([apk] = its manifest summary); [main]: the bundled app itself (runs its preInstall steps). */
+async function installBytes(apk, apkBytes, main) {
   // App-specific steps before replacing the app (bundle.json "preInstall"), e.g. RemoteDVR releasing its 360 cameras.
-  if (state.bundle?.packageName === apk.packageName && (await installedVersion(apk.packageName).catch(() => null))) {
+  if (main && state.bundle?.packageName === apk.packageName && (await installedVersion(apk.packageName).catch(() => null))) {
     for (const step of state.bundle.preInstall || []) {
       log(`— ${step.label}`, "muted");
       for (const cmd of step.commands) await sh(cmd).catch((e) => log(`failed: ${e.message}`, "err"));
@@ -250,17 +283,11 @@ async function install() {
     if (/VERSION_DOWNGRADE/i.test(out)) { log("A newer version is installed; uninstall it first to downgrade.", "err"); break; }
   }
   await sh(`rm -f ${remote} ${dex}`, { quiet: true }).catch(() => {});
-  if (ok) {
-    log("Installed.", "ok");
-  } else {
+  if (!ok) {
     log("Install failed. Device log (package manager):", "err");
     await sh(`logcat -d -b all -t 600 2>/dev/null | grep -i -E "Restriction|PackageManager|PackageInstaller|app_process|AndroidRuntime|INSTALL_|sop6|desay" | tail -n 30`).catch(() => {});
-    const dl = `/sdcard/Download/${apk.packageName}-${apk.versionName || "app"}.apk`;
-    await push(dl, bytesStream(apkBytes)).then(
-      () => log(`Copied the APK to ${dl}: open it with the device's file manager to install it, then use "Grant & set up".`, "err"),
-      (e) => log(`Couldn't copy the APK to Download: ${e.message}`, "err"));
   }
-  await showInstalled();
+  return ok;
 }
 
 async function grant() {
