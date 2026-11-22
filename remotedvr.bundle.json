@@ -14,7 +14,7 @@
     },
     {
       "id": "update-helper",
-      "label": "Let \"RemoteDVR updates\" confirm Wi-Fi updates (accessibility; only presses Install for RemoteDVR, for 2 minutes after the phone sends one)",
+      "label": "Auto-update over Wi-Fi: install the small \"RemoteDVR updates\" helper (with Install) and let it confirm RemoteDVR updates sent from the phone (accessibility; presses Install only for RemoteDVR, for 2 minutes after the phone sends one)",
       "detail": "com.nhowka.remotedvr.updatehelper/.InstallClicker",
       "headUnitOnly": true,
       "commands": [
@@ -35,7 +35,8 @@
     {
       "asset": "assets/update-helper.apk",
       "label": "Install \"RemoteDVR updates\" (car-only helper: presses Install for updates sent from the phone over Wi-Fi)",
-      "headUnitOnly": true
+      "headUnitOnly": true,
+      "actionId": "update-helper"
     }
   ]
 }

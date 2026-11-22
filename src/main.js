@@ -232,6 +232,9 @@ async function installCompanions() {
   if (state.bundle?.packageName !== state.apk.packageName) return;
   for (const c of state.bundle.companions || []) {
     if (c.headUnitOnly && !state.headUnit) { log(`— ${c.label}: skipped (not a Desay SV head unit)`, "muted"); continue; }
+    // Optional: follows its checkbox in the set-up list (e.g. "Auto-update over Wi-Fi").
+    const choice = c.actionId && state.actions.find((a) => a.id === c.actionId);
+    if (choice && !choice.on) { log(`— ${c.label}: not selected`, "muted"); continue; }
     const bytes = unzipSync(state.apkBytes, { filter: (f) => f.name === c.asset })[c.asset];
     if (!bytes) { log(`— ${c.label}: not in this APK`, "muted"); continue; }
     const m = summarizeManifest(parseBinaryXml(unzipSync(bytes, { filter: (f) => f.name === "AndroidManifest.xml" })["AndroidManifest.xml"]));
