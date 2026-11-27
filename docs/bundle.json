@@ -3,10 +3,10 @@
   "description": "Install RemoteDVR on the car's head unit (or a phone) over USB and grant what it needs. Runs entirely in your browser (WebUSB + ADB).",
   "apk": "RemoteDVR.apk",
   "packageName": "com.nhowka.remotedvr",
-  "versionName": "1.0.20261127.0009",
-  "versionCode": 475209,
-  "size": 20696921,
-  "sha256": "0408000cf61276d14500c4048bcf2c4f94b4af4f817660a8c1cf607936409111",
+  "versionName": "1.0.20261127.0045",
+  "versionCode": 475245,
+  "size": 20713305,
+  "sha256": "c0d754ad2377da016a46c5a6306d06539442cb1862dd408338cde23cc0cb02b9",
   "preInstall": [
     {
       "label": "Ask RemoteDVR on the car to release the 360 cameras (an update would otherwise leave them stuck until the car sleeps)",
